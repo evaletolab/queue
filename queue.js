@@ -1,7 +1,7 @@
 (function() {
   var slice = [].slice;
 
-  function queue(parallelism) {
+  function queue(parallelism, continueOnError) {
     var q,
         tasks = [],
         started = 0, // number of tasks that have been started (and perhaps finished)
@@ -19,21 +19,28 @@
         var i = started++,
             t = tasks[i],
             a = slice.call(t, 1);
-        a.push(callback(i));
+
+        // if callback exist, proxying it
+        if(continueOnError && typeof a[a.length-1] ==='function'){
+          a[a.length-1]=callback(i,a[a.length-1])
+        }else a.push(callback(i));
+
         ++active;
         t[0].apply(null, a);
       }
     }
 
-    function callback(i) {
+    function callback(i, originalCallback) {
       return function(e, r) {
         --active;
-        if (error != null) return;
-        if (e != null) {
+        if (!continueOnError&&error != null) return;
+        if (!continueOnError && e != null) {
           error = e; // ignore new tasks and squelch active callbacks
           started = remaining = NaN; // stop queued tasks from starting
           notify();
         } else {
+          // original callback 
+          originalCallback&&originalCallback(e,r);
           tasks[i] = r;
           if (--remaining) popping || pop();
           else notify();
